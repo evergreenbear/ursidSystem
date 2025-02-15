@@ -1,0 +1,85 @@
+#!/bin/bash
+name="kiuon"
+description="HP Elite X2 1012 G1 running Alpine on Sway, configured for touchscreen"
+
+# clean up ribbon when exiting unexpectedly
+trap 'ribbonClear; fatal "\nexecuting profile $profile failed! see above for details"' ERR
+trap 'ribbonClear; fatal "\nscript was stopped manually"' SIGINT
+
+main() {
+	[[ "$#" -lt 1 ]] && fatal "please specify whether to perform install or setup stage of script"
+	case "$1" in
+		"install")
+			cat <<- EOF > "$name-answerfile"
+			KEYMAPOPTS="us us"
+			HOSTNAMEOPTS=$name
+			DEVDOPTS=mdev
+			INTERFACESOPTS="auto lo
+			iface lo inet loopback
+
+			auto wlan0
+			iface wlan0 inet dhcp
+			"
+			DNSOPTS=none
+			TIMEZONEOPTS=America/Denver
+			PROXYOPTS=none
+			APKREPOSOPTS="f"
+			USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
+			SSHDOPTS=none
+			NTPOPTS="openntpd"
+			DISKOPTS="-m sys /dev/sda"
+			LBUOPTS=none
+			APKCACHEOPTS=none
+			EOF
+			install-alpine -f "$name-answerfile"
+		;;
+		"setup")
+			ribbon "configuring"
+			# setup doas
+			su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
+			# boot time improvements
+			doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
+			doas setup-devd udev
+			doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
+			cat <<- EOF > /etc/NetworkManager/NetworkManager.conf
+			[main]
+			dhcp=internal
+			plugins=ifupdown,keyfile
+
+			[ifupdown]
+			managed=true
+
+			[device]
+			wifi.scan-rand-mac-address=yes
+			wifi.backend=wpa_supplicant
+			EOF
+			doas rc-service networking stop
+			doas rc-update del networking boot
+			doas rc-service wpa_supplicant stop
+			doas rc-update del wpa_supplicant boot
+			doas rc-service networkmanager start
+			doas rc-update add networkmanager boot
+			doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+			# kaby lake-appropriate intel drivers
+			doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
+			# setup sway
+			doas setup-desktop sway
+			# testing repo
+			echo "@testing https://mirrors.gigenet.com/alpinelinux/edge/testing" | doas tee -a /etc/apk/repositories
+			# greeter, graphical tools
+			doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl
+			doas sed -i 's%agreety --cmd /bin/sh%cage -s -- regreet%g' /etc/greetd/config.toml
+
+			mkdir ~/.config/sway; mkdir ~/.walls
+			curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
+			curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
+		;;
+	esac
+
+	[[ "$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
+
+	
+}
+
+clear; main
+ribbonClear; return 0
