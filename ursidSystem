@@ -1,0 +1,173 @@
+#!/bin/bash
+
+##
+## ursidSystem: quick & crappy bash backup/restore/first-time setup script
+## v0.1.0
+##
+
+## -* script configuration *- ##
+## change these if you want something else
+scrDir="$HOME/.config/ursidSystem" #directory where all script files are stored
+dirProfiles="$scrDir/profiles"     #directory of profiles
+dirTrash="$scrDir/profiles/.trash" #directory of trashed profiles [scr_trashDeletion]
+dirEtc="$scrDir/etc"               #directory for profile-specific persistent files
+scr_editProfileAfterCreation=true  #self-explanatory
+scr_trashDeletion=true             #move files to dirTrash instead of outright deletion
+scr_trashRestore=true              #if a trashed profile of the same name exists upon creation 'create [name]', just recover it
+								   #^ same behavior as 'undelete [name]'
+
+## -* colors for fancy output *- ##
+declare -r red='\033[0;31m'
+declare -r redbold='\033[01;31m'
+declare -r greenbold='\033[01;32m'
+declare -r cyan='\033[0;36m'
+declare -r cyanbold='\033[01;36m'
+declare -r magenta='\033[0;35m'
+declare -r magentabold='\033[01;35m'
+declare -r bold='\033[0;1m'
+declare -r clear='\033[0m'
+declare -r bluebg='\e[48;5;24m'
+
+fatal() {
+	printf "${redbold}error:${bold} $1${clear}\n"
+	[[ "$2" == "usage" ]] && usage
+	exit 1
+}
+
+usage() {
+	printf "$(
+	cat <<- EOF
+	${cyanbold}ursidSystem${bold}: my crappy backup script, made in bash
+
+	${cyanbold}commands:${clear}
+	${bold}create [name]${clear}   - ${bold}create a profile to backup/restore from${clear}
+	|-->${clear} a profile will not be overwritten if it already exists; to remove and then create, use $0 dc [profile]
+	|-->${clear} by default, if a trashed profile of the same name exists when creating a new one, it will restore that profile. this can be configured with scr_trashRestore
+	${bold}delete [name]${clear}   - ${bold}delete a profile${clear}
+	|-->${clear} by default, profiles being deleted will be moved to trash (dirTrash). this can be configured with scr_trashDeletion
+	${bold}undelete [name]${clear} - ${bold}undelete a profile${clear}
+	|-->${clear} only works with profiles that have been trashed
+	${bold}exec [profile] {script args} ${clear}   - ${bold}exec a profile${clear}
+	${bold}edit [profile]${clear}  - ${bold}open profile in default editor${clear}
+	|--> your shell must have an EDITOR value set
+	${bold}where [item]${clear}    - ${bold}get location of files or directories used by this script${clear}
+	|--> ${bold}main${clear}       - ${bold}location of main script directory, wherein all others are contained by default${clear}
+	|--> ${bold}trash${clear}      - ${bold}location of trash directory [used if scr_trashDeletion is enabled instead of hard deletion via rm]${clear}
+	|--> ${bold}profiles${clear}   - ${bold}location of profile directory${clear}
+	EOF
+	)\n"; exit 1
+}
+
+## unused in this script, but useful eye candy for profiles
+#https://web.archive.org/web/20250209231837/https://stackoverflow.com/questions/63661567/how-to-display-text-at-the-bottom-of-the-terminal-window-and-make-it-stay-there, with modifications
+LINES=$(tput lines)
+COLUMNS=$(tput cols)
+set_window() {
+	# Create a virtual window that is two lines smaller at the bottom.                                                                               
+	tput csr 0 $(($LINES - 2))
+}
+set_window
+ribbon() {
+	tput cup $(($LINES - 1)) 0 # cursor -> last line of the virtual console
+	printf "${cyanbold}$name${clear} $1" 
+	tput cup 0 0 # cursor -> home position
+}
+ribbonClear() {
+	tput csr 0 $LINES # Reset scroll region to full terminal
+	tput cup $(($LINES - 1)) 0 # cursor -> last line
+	printf "%${COLUMNS}s" "" #clear it
+	tput cup $LINES 0 #return cursor 
+}
+
+
+main() {
+	## -* ensure sane environment *- ##
+	# show help if no arguments were passed
+	[[ "$#" -lt 1 ]] && usage	
+	# make script directories if it doesn't exist
+	[[ ! -d "$dirProfiles" ]] && mkdir -p "$dirProfiles"
+
+	case "$1" in
+		"create"|"c") shift;
+			## -* create a profile from template *- ##
+			# sanity checking
+			profileName="$1"; shift
+			[[ -z "$profileName" ]] && fatal "please name your new profile!" usage
+			[[ -f "$dirProfiles/$profileName" ]] && fatal "profile $profileName already exists; not overwriting"
+			[[ -f "$dirTrash/$profileName" ]] && if "$scr_trashRestore"; then mv "$dirTrash/$profileName" "$dirProfiles/$profileName" && return; fi
+			# write template
+			cat <<- EOF > "$dirProfiles/$profileName"
+			#!/bin/bash
+			name="$profileName"
+			description="$*"
+
+			# clean up ribbon when exiting unexpectedly
+			trap 'ribbonClear; fatal "\nexecuting profile $profile failed! see above for details"' ERR
+			trap 'ribbonClear; fatal "\nscript was stopped manually"' SIGINT
+
+			main() {
+				# do stuff
+			}
+
+			clear; main
+			ribbonClear; return 0
+			EOF
+			chmod +x "$dirProfiles/$profileName"
+			# run script in subshell to edit after creating, if enabled
+			if "$scr_editProfileAfterCreation"; then "$0" e "$profileName"; fi
+			;;
+		"delete"|"d") shift;
+			[[ -z "$1" ]] && fatal "please name a profile to delete!"
+			[[ ! -f "$dirProfiles/$1" ]] && fatal "profile $1 doesn't exist!"
+			if "$scr_trashDeletion"; then
+				[[ ! -d "$dirTrash" ]] && mkdir -p "$dirTrash"
+				mv "$dirProfiles/$1" "$dirTrash/$1"
+			else
+				rm "$dirProfiles/$1"
+			fi
+			;;
+		"undelete"|"ud") shift;
+			## move back from trash if it wasn't hard-deleted
+			[[ ! -d "$dirTrash" ]] && fatal "trash cache [$dirTrash] does not exist; cannot recover $1 as it wasn't saved"
+			[[ ! -f "$dirTrash/$1" ]] && fatal "trash cache [$dirTrash] exists but does not contain profile $1; cannot recover"
+			mv "$dirTrash/$1" "$dirProfiles/$1"
+			;;	
+		"exec"|"ex"|"x") shift;
+			## execute script, trapping errors that occur
+			profile="$1"; shift
+			source "$dirProfiles/$profile" "$@"
+			;;
+		"list"|"l") shift;
+			[[ -z "$(ls $dirProfiles)" ]] && fatal "profile directory is empty! ($dirProfiles)"
+			arrProfiles=("$dirProfiles"/*); maxLength=0; prfDescriptions=()
+			for i in "${arrProfiles[@]}"; do
+    				shortName="${i##*/}"
+    				prfLength="${#shortName}"
+    				prfDescriptions+=("$(sed -n 's/^description="\([^"]*\)"/\1/p' "$i")")
+    				(( prfLength > maxLength )) && maxLength=$prfLength
+			done
+			for i in "${!arrProfiles[@]}"; do
+    				shortName="${arrProfiles[$i]##*/}"
+    				description="${prfDescriptions[$i]}"
+    				printf "${cyanbold}%-${maxLength}s${clear} - ${bold}%s${clear}\n" "$shortName" "$description"
+			done	
+			;;
+		"edit"|"e") shift;
+			[[ -z "$dirProfiles" ]] && fatal "no profile directory is configured"
+			[[ -z "$EDITOR" ]] && fatal "no EDITOR value is set in your shell"
+			[[ ! -f "$dirProfiles/$1" ]] && fatal "profile $1 does not exist"
+			$EDITOR "$dirProfiles/$1"
+			;;
+		"where"|"w") shift;
+			case "$1" in
+				"main") printf "${bold}$scrDir${clear}\n" ;;
+				"trash") printf "${bold}$dirTrash${clear}\n" ;;
+				"profiles"|"profile") printf "${bold}$dirProfiles${clear}\n" ;;
+				*) fatal "unknown argument: $1" ;;
+			esac
+			;;
+		*) usage ;;
+	esac
+}
+
+main "$@"
