@@ -2,6 +2,31 @@
 name="kiuon"
 description="HP Elite X2 1012 G1 running Alpine on Sway, configured for touchscreen"
 
+fatal() {
+	printf "${redbold}error:${bold} $1${clear}\n"
+	[[ "$2" == "usage" ]] && usage
+	exit 1
+}
+
+LINES=$(tput lines)
+COLUMNS=$(tput cols)
+set_window() {
+	# Create a virtual window that is two lines smaller at the bottom.
+	tput csr 0 $(($LINES - 2))
+}
+set_window
+ribbon() {
+	tput cup $(($LINES - 1)) 0 # cursor -> last line of the virtual console
+	printf "${cyanbold}$name${clear} $1"
+	tput cup 0 0 # cursor -> home position
+}
+ribbonClear() {
+	tput csr 0 $LINES # Reset scroll region to full terminal
+	tput cup $(($LINES - 1)) 0 # cursor -> last line
+	printf "%${COLUMNS}s" "" #clear it
+	tput cup $LINES 0 #return cursor
+}
+
 # clean up ribbon when exiting unexpectedly
 trap 'ribbonClear; fatal "\nexecuting profile $profile failed! see above for details"' ERR
 trap 'ribbonClear; fatal "\nscript was stopped manually"' SIGINT
