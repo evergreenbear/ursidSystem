@@ -59,13 +59,14 @@ main() {
 			install-alpine -f "$name-answerfile"
 		;;
 		"setup")
-			ribbon "configuring"
+			ribbon "configuring doas (enter ROOT password)"
 			# setup doas
 			su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
 			# boot time improvements
+			ribbon "configuring system (enter USER password)"
 			doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
 			doas setup-devd udev
-			doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
+			doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
 			cat <<- EOF > /etc/NetworkManager/NetworkManager.conf
 			[main]
 			dhcp=internal
@@ -106,5 +107,5 @@ main() {
 	
 }
 
-clear; main
+clear; main "$@"
 ribbonClear; return 0
