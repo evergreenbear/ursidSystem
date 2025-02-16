@@ -3,8 +3,12 @@
 name="kiuon"
 description="HP Elite X2 1012 G1 running Alpine on Sway, configured for touchscreen"
 
-# Write the Bash script to a file
-cat <<- __EOF__ > kiuonbash
+# install bash, then run the script
+if [ "$1" = "install" ]; then setup-apkrepos 1; fi
+if ! command -v bash; then apk update; apk add bash curl ncurses; fi
+
+# write script to file and execute as bash
+cat <<- __EOF__ > "$namebash"
 	#!/bin/bash
 	fatal() {
 		printf "\033[1;31merror:\033[1m \$1\033[0m\n"
@@ -47,7 +51,7 @@ cat <<- __EOF__ > kiuonbash
 				DNSOPTS=none
 				TIMEZONEOPTS=America/Denver
 				PROXYOPTS=none
-				APKREPOSOPTS="1"
+				APKREPOSOPTS="1 -o"
 				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
 				SSHDOPTS=none
 				NTPOPTS="openntpd"
@@ -115,4 +119,4 @@ __EOF__
 # Execute the script with the arguments passed to the ash script
 export name
 export description
-clear; bash -i ./kiuonbash "$@"
+clear; bash -i "$namebash" "$@"
