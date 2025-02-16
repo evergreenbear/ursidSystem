@@ -39,20 +39,15 @@ main() {
 			KEYMAPOPTS="us us"
 			HOSTNAMEOPTS=$name
 			DEVDOPTS=mdev
-			INTERFACESOPTS="auto lo
-			iface lo inet loopback
-
-			auto wlan0
-			iface wlan0 inet dhcp
-			"
+			INTERFACESOPTS=none
 			DNSOPTS=none
 			TIMEZONEOPTS=America/Denver
 			PROXYOPTS=none
-			APKREPOSOPTS="f"
+			APKREPOSOPTS="1"
 			USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
 			SSHDOPTS=none
 			NTPOPTS="openntpd"
-			DISKOPTS="-m sys /dev/sda"
+			DISKOPTS="-m sys /dev/mmcblk0"
 			LBUOPTS=none
 			APKCACHEOPTS=none
 			EOF
