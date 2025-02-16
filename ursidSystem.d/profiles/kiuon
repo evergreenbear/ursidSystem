@@ -4,11 +4,11 @@ name="kiuon"
 description="HP Elite X2 1012 G1 running Alpine on Sway, configured for touchscreen"
 
 # install bash, then run the script
-if [ "$1" = "install" ]; then setup-apkrepos 1; fi
-if ! command -v bash; then apk update; apk add bash curl ncurses; fi
+if [ "$1" = "install" ]; then printf "1\n" | setup-apkrepos; fi
+apk update; apk add bash curl ncurses
 
 # write script to file and execute as bash
-cat <<- __EOF__ > "$namebash"
+cat <<- __EOF__ > "$name"bash
 	#!/bin/bash
 	fatal() {
 		printf "\033[1;31merror:\033[1m \$1\033[0m\n"
@@ -59,7 +59,7 @@ cat <<- __EOF__ > "$namebash"
 				LBUOPTS=none
 				APKCACHEOPTS=none
 				EOF
-				install-alpine -f "\$name-answerfile"
+				setup-alpine -f "\$name-answerfile"
 			;;
 			"setup") shift;
 				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
@@ -119,4 +119,4 @@ __EOF__
 # Execute the script with the arguments passed to the ash script
 export name
 export description
-clear; bash -i "$namebash" "$@"
+clear; bash -i "$name"bash "$@"
