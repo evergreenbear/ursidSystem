@@ -1,106 +1,118 @@
-#!/bin/bash
+#!/bin/ash
+
 name="kiuon"
 description="HP Elite X2 1012 G1 running Alpine on Sway, configured for touchscreen"
 
-fatal() {
-	printf "${redbold}error:${bold} $1${clear}\n"
-	[[ "$2" == "usage" ]] && usage
-	exit 1
-}
+# Write the Bash script to a file
+cat <<- __EOF__ > kiuonbash
+	#!/bin/bash
+	fatal() {
+		printf "\033[1;31merror:\033[1m \$1\033[0m\n"
+		[[ "\$2" == "usage" ]] && usage
+		exit 1
+	}
+	declare -r cyanbold='\033[01;36m'
+	declare -r clear='\033[0m'
+	LINES=\$(tput lines)
+	COLUMNS=\$(tput cols)
+	set_window() {
+		# Create a virtual window that is two lines smaller at the bottom.
+		tput csr 0 \$((\$LINES - 2))
+	}
+	set_window
+	ribbon() {
+		tput cup \$((\$LINES - 1)) 0 # cursor -> last line of the virtual console
+		printf "\${cyanbold}\$name\${clear} \$1"
+		tput cup 0 0 # cursor -> home position
+	}
+	ribbonClear() {
+		tput csr 0 \$LINES # Reset scroll region to full terminal
+		tput cup \$((\$LINES - 1)) 0 # cursor -> last line
+		printf "%\${COLUMNS}s" "" #clear it
+		tput cup \$LINES 0 #return cursor
+	}
 
-LINES=$(tput lines)
-COLUMNS=$(tput cols)
-set_window() {
-	# Create a virtual window that is two lines smaller at the bottom.
-	tput csr 0 $(($LINES - 2))
-}
-set_window
-ribbon() {
-	tput cup $(($LINES - 1)) 0 # cursor -> last line of the virtual console
-	printf "${cyanbold}$name${clear} $1"
-	tput cup 0 0 # cursor -> home position
-}
-ribbonClear() {
-	tput csr 0 $LINES # Reset scroll region to full terminal
-	tput cup $(($LINES - 1)) 0 # cursor -> last line
-	printf "%${COLUMNS}s" "" #clear it
-	tput cup $LINES 0 #return cursor
-}
+	trap 'ribbonClear; fatal "executing profile $profile failed! see above for details"' ERR
+	trap 'ribbonClear; fatal "script was stopped manually"' SIGINT
 
-# clean up ribbon when exiting unexpectedly
-trap 'ribbonClear; fatal "\nexecuting profile $profile failed! see above for details"' ERR
-trap 'ribbonClear; fatal "\nscript was stopped manually"' SIGINT
+	main() {
+		[[ "\$#" -lt 1 ]] && fatal "please specify whether to perform install or setup stage of script"
+		case "\$1" in
+			"install") shift;
+				cat <<- EOF > "\$name-answerfile"
+				KEYMAPOPTS="us us"
+				HOSTNAMEOPTS=\$name
+				DEVDOPTS=mdev
+				INTERFACESOPTS=none
+				DNSOPTS=none
+				TIMEZONEOPTS=America/Denver
+				PROXYOPTS=none
+				APKREPOSOPTS="1"
+				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
+				SSHDOPTS=none
+				NTPOPTS="openntpd"
+				DISKOPTS="-m sys /dev/vda"
+				LBUOPTS=none
+				APKCACHEOPTS=none
+				EOF
+				install-alpine -f "\$name-answerfile"
+			;;
+			"setup") shift;
+				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
+				ribbon "configuring doas (enter ROOT password)"
+				# setup doas
+				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
+				# boot time improvements
+				ribbon "configuring system (enter USER password)"
+				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
+				ribbon "configuring system"
+				doas setup-devd udev
+				doas setup-apkrepos -o
+				doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
+				cat <<- EOF > /etc/NetworkManager/NetworkManager.conf
+				[main]
+				dhcp=internal
+				plugins=ifupdown,keyfile
 
-main() {
-	[[ "$#" -lt 1 ]] && fatal "please specify whether to perform install or setup stage of script"
-	case "$1" in
-		"install")
-			cat <<- EOF > "$name-answerfile"
-			KEYMAPOPTS="us us"
-			HOSTNAMEOPTS=$name
-			DEVDOPTS=mdev
-			INTERFACESOPTS=none
-			DNSOPTS=none
-			TIMEZONEOPTS=America/Denver
-			PROXYOPTS=none
-			APKREPOSOPTS="1"
-			USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
-			SSHDOPTS=none
-			NTPOPTS="openntpd"
-			DISKOPTS="-m sys /dev/mmcblk0"
-			LBUOPTS=none
-			APKCACHEOPTS=none
-			EOF
-			install-alpine -f "$name-answerfile"
-		;;
-		"setup")
-			ribbon "configuring doas (enter ROOT password)"
-			# setup doas
-			su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
-			# boot time improvements
-			ribbon "configuring system (enter USER password)"
-			doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
-			doas setup-devd udev
-			doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
-			cat <<- EOF > /etc/NetworkManager/NetworkManager.conf
-			[main]
-			dhcp=internal
-			plugins=ifupdown,keyfile
+				[ifupdown]
+				managed=true
 
-			[ifupdown]
-			managed=true
+				[device]
+				wifi.scan-rand-mac-address=yes
+				wifi.backend=wpa_supplicant
+				EOF
+				doas rc-service networking stop
+				doas rc-update del networking boot
+				doas rc-service wpa_supplicant stop
+				doas rc-update del wpa_supplicant boot
+				doas rc-service networkmanager start
+				doas rc-update add networkmanager boot
+				doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				# kaby lake-appropriate intel drivers
+				doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
+				# setup sway
+				doas setup-desktop sway
+				# testing repo
+				echo "@testing https://mirrors.gigenet.com/alpinelinux/edge/testing" | doas tee -a /etc/apk/repositories
+				# greeter, graphical tools
+				doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl
+				doas sed -i 's%agreety --cmd /bin/sh%cage -s -- regreet%g' /etc/greetd/config.toml
 
-			[device]
-			wifi.scan-rand-mac-address=yes
-			wifi.backend=wpa_supplicant
-			EOF
-			doas rc-service networking stop
-			doas rc-update del networking boot
-			doas rc-service wpa_supplicant stop
-			doas rc-update del wpa_supplicant boot
-			doas rc-service networkmanager start
-			doas rc-update add networkmanager boot
-			doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
-			# kaby lake-appropriate intel drivers
-			doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
-			# setup sway
-			doas setup-desktop sway
-			# testing repo
-			echo "@testing https://mirrors.gigenet.com/alpinelinux/edge/testing" | doas tee -a /etc/apk/repositories
-			# greeter, graphical tools
-			doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl
-			doas sed -i 's%agreety --cmd /bin/sh%cage -s -- regreet%g' /etc/greetd/config.toml
+				mkdir ~/.config/sway; mkdir ~/.walls
+				curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
+				curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
+			;;
+			*)
+				fatal "unknown action $1"
+			;;
+		esac
+	}
 
-			mkdir ~/.config/sway; mkdir ~/.walls
-			curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
-			curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
-		;;
-	esac
+	main "\$@"
+	ribbonClear
+__EOF__
 
-	[[ "$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
-
-	
-}
-
-clear; main "$@"
-ribbonClear; return 0
+# Execute the script with the arguments passed to the ash script
+export name
+export description
+clear; bash -i ./kiuonbash "$@"
