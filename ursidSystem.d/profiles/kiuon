@@ -3,6 +3,8 @@
 name="kiuon"
 description="HP Elite X2 1012 G1 running Alpine on Sway, configured for touchscreen"
 
+## setup-interfaces -r to get network connection
+
 # install bash, then run the script
 if [ "$1" = "install" ]; then printf "1\n" | setup-apkrepos; fi
 apk update; apk add bash curl ncurses
@@ -44,17 +46,17 @@ cat <<- __EOF__ > "$name"bash
 		case "\$1" in
 			"install") shift;
 				cat <<- EOF > "\$name-answerfile"
-				KEYMAPOPTS="us us"
-				HOSTNAMEOPTS=\$name
-				DEVDOPTS=mdev
+				KEYMAPOPTS="-h us us"
+				HOSTNAMEOPTS="-n \$name"
+				DEVDOPTS="mdev"
 				INTERFACESOPTS=none
 				DNSOPTS=none
-				TIMEZONEOPTS=America/Denver
+				TIMEZONEOPTS="-z America/Denver"
 				PROXYOPTS=none
-				APKREPOSOPTS="1 -o"
+				APKREPOSOPTS="-1 -o"
 				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
 				SSHDOPTS=none
-				NTPOPTS="openntpd"
+				NTPOPTS="-c openntpd"
 				DISKOPTS="-m sys /dev/vda"
 				LBUOPTS=none
 				APKCACHEOPTS=none
