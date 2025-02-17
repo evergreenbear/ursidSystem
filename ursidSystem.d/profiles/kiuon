@@ -46,15 +46,15 @@ cat <<- __EOF__ > "$name"bash
 		case "\$1" in
 			"install") shift;
 				cat <<- EOF > "\$name-answerfile"
-				KEYMAPOPTS="-h us us"
+				KEYMAPOPTS="us us"
 				HOSTNAMEOPTS="-n \$name"
 				DEVDOPTS="mdev"
 				INTERFACESOPTS=none
 				DNSOPTS=none
 				TIMEZONEOPTS="-z America/Denver"
 				PROXYOPTS=none
-				APKREPOSOPTS="-1 -o"
-				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen"
+				APKREPOSOPTS="-1"
+				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen" ##TODO: prompt for password?
 				SSHDOPTS=none
 				NTPOPTS="-c openntpd"
 				DISKOPTS="-m sys /dev/vda"
@@ -65,8 +65,10 @@ cat <<- __EOF__ > "$name"bash
 			;;
 			"setup") shift;
 				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
-				ribbon "configuring doas (enter ROOT password)"
+				ribbon "add a password for user $USER (authenticate with ROOT password)"
+				su -c "passwd $USER"
 				# setup doas
+				ribbon "configuring doas (enter ROOT password)"
 				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
 				# boot time improvements
 				ribbon "configuring system (enter USER password)"
