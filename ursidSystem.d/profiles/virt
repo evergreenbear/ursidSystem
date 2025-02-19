@@ -3,7 +3,14 @@
 name="virt"
 description="VM test for making kiuon"
 
-## setup-interfaces -r to get network connection
+## from alpine live image, run
+## setup-interfaces -r
+## to connect to internet, then acquire the script however
+
+# name of user to add when installing
+user="evergreen"
+
+if [ "$#" -eq 0 ]; then fatal "specify one of: install, setup"; fi
 
 # install bash, then run the script
 if [ "$1" = "install" ]; then printf "1\n" | setup-apkrepos; fi
@@ -45,6 +52,7 @@ cat <<- __EOF__ > "$name"bash
 		[[ "\$#" -lt 1 ]] && fatal "please specify whether to perform install or setup stage of script"
 		case "\$1" in
 			"install") shift;
+				# make an answerfile and pass it to alpine setup script
 				cat <<- EOF > "\$name-answerfile"
 				KEYMAPOPTS="us us"
 				HOSTNAMEOPTS="-n \$name"
@@ -54,7 +62,7 @@ cat <<- __EOF__ > "$name"bash
 				TIMEZONEOPTS="-z America/Denver"
 				PROXYOPTS=none
 				APKREPOSOPTS="-1"
-				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen" ##TODO: prompt for password?
+				USEROPTS="-a -u -g audio,input,video,netdev,wheel $user" ##TODO: prompt for password?
 				SSHDOPTS=none
 				NTPOPTS="-c openntpd"
 				DISKOPTS="-m sys /dev/vda"
@@ -62,8 +70,21 @@ cat <<- __EOF__ > "$name"bash
 				APKCACHEOPTS=none
 				EOF
 				setup-alpine -f "\$name-answerfile"
+
+				# propogate script so it runs setup after first boot
+				## mount vda3, cd script, add to .profile, chmod both files
+				mount /dev/vda3 /mnt
+				cp -v "\$name"bash /mnt/home/"\$user"/; chmod 777 /mnt/home/"\$user"/kiuonbash
+				echo "bash /home/\$user/kiuonbash setup" >> /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
+				umount /mnt
+				ribbon "install finished"
+				for (( i=5; i>0; i-- )); do echo "rebooting in $i"; sleep 1; done
+				reboot
 			;;
 			"setup") shift;
+				# cleanup propogation
+				sed '/kiuonbash/d' "\$HOME"/.profile
+				# get everything up and runnning
 				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
 				ribbon "add a password for user $USER (authenticate with ROOT password)"
 				su -c "passwd $USER"
@@ -105,6 +126,7 @@ cat <<- __EOF__ > "$name"bash
 				mkdir ~/.config/sway; mkdir ~/.walls
 				curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
 				curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
+				
 			;;
 			*)
 				fatal "unknown action $1"
@@ -114,9 +136,10 @@ cat <<- __EOF__ > "$name"bash
 
 	main "\$@"
 	ribbonClear
+	rm "$0"
 __EOF__
 
 # Execute the script with the arguments passed to the ash script
 export name
 export description
-clear; bash -i "$name"bash "$@"
+clear; bash "$name"bash "$@"
