@@ -1,0 +1,122 @@
+#!/bin/ash
+
+name="virt"
+description="VM test for making kiuon"
+
+## setup-interfaces -r to get network connection
+
+# install bash, then run the script
+if [ "$1" = "install" ]; then printf "1\n" | setup-apkrepos; fi
+apk update; apk add bash curl ncurses
+
+# write script to file and execute as bash
+cat <<- __EOF__ > "$name"bash
+	#!/bin/bash
+	fatal() {
+		printf "\033[1;31merror:\033[1m \$1\033[0m\n"
+		[[ "\$2" == "usage" ]] && usage
+		exit 1
+	}
+	declare -r cyanbold='\033[01;36m'
+	declare -r clear='\033[0m'
+	LINES=\$(tput lines)
+	COLUMNS=\$(tput cols)
+	set_window() {
+		# Create a virtual window that is two lines smaller at the bottom.
+		tput csr 0 \$((\$LINES - 2))
+	}
+	set_window
+	ribbon() {
+		tput cup \$((\$LINES - 1)) 0 # cursor -> last line of the virtual console
+		printf "\${cyanbold}\$name\${clear} \$1"
+		tput cup 0 0 # cursor -> home position
+	}
+	ribbonClear() {
+		tput csr 0 \$LINES # Reset scroll region to full terminal
+		tput cup \$((\$LINES - 1)) 0 # cursor -> last line
+		printf "%\${COLUMNS}s" "" #clear it
+		tput cup \$LINES 0 #return cursor
+	}
+
+	trap 'ribbonClear; fatal "executing profile $profile failed! see above for details"' ERR
+	trap 'ribbonClear; fatal "script was stopped manually"' SIGINT
+
+	main() {
+		[[ "\$#" -lt 1 ]] && fatal "please specify whether to perform install or setup stage of script"
+		case "\$1" in
+			"install") shift;
+				cat <<- EOF > "\$name-answerfile"
+				KEYMAPOPTS="us us"
+				HOSTNAMEOPTS="-n \$name"
+				DEVDOPTS="mdev"
+				INTERFACESOPTS=none
+				DNSOPTS=none
+				TIMEZONEOPTS="-z America/Denver"
+				PROXYOPTS=none
+				APKREPOSOPTS="-1"
+				USEROPTS="-a -u -g audio,input,video,netdev,wheel evergreen" ##TODO: prompt for password?
+				SSHDOPTS=none
+				NTPOPTS="-c openntpd"
+				DISKOPTS="-m sys /dev/vda"
+				LBUOPTS=none
+				APKCACHEOPTS=none
+				EOF
+				setup-alpine -f "\$name-answerfile"
+			;;
+			"setup") shift;
+				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
+				ribbon "add a password for user $USER (authenticate with ROOT password)"
+				su -c "passwd $USER"
+				# setup doas
+				ribbon "configuring doas (enter ROOT password)"
+				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
+				# boot time improvements
+				ribbon "configuring system (enter USER password)"
+				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
+				ribbon "configuring system"
+				doas setup-devd udev
+				doas setup-apkrepos -o
+				doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
+				cat <<- EOF | doas tee /etc/NetworkManager/NetworkManager.conf
+				[main]
+				dhcp=internal
+				plugins=ifupdown,keyfile
+
+				[ifupdown]
+				managed=true
+				EOF
+				doas rc-service networking stop
+				doas rc-update del networking boot
+				doas rc-service wpa_supplicant stop
+				doas rc-update del wpa_supplicant boot
+				doas rc-service networkmanager start
+				doas rc-update add networkmanager boot
+				#let's just see if nm will automatically configure ethernet #doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				# kaby lake-appropriate intel drivers
+				doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
+				# setup sway
+				doas setup-desktop sway
+				# testing repo
+				echo "@testing https://mirrors.gigenet.com/alpinelinux/edge/testing" | doas tee -a /etc/apk/repositories
+				# greeter, graphical tools
+				doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl
+				doas sed -i 's%agreety --cmd /bin/sh%cage -s -- regreet%g' /etc/greetd/config.toml
+
+				mkdir ~/.config/sway; mkdir ~/.walls
+				curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
+				curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
+			;;
+			*)
+				fatal "unknown action $1"
+			;;
+		esac
+	}
+
+	main "\$@"
+	ribbonClear
+__EOF__
+
+# Execute the script with the arguments passed to the ash script
+export name
+export description
+clear; bash -i "$name"bash "$@"
