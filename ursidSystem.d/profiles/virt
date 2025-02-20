@@ -87,13 +87,13 @@ cat <<- __EOF__ > "$name"bash
 				# get everything up and runnning
 				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"	
 				# setup doas
-				ribbon "configuring doas (enter ROOT password)"
+				clear; ribbon "configuring doas (enter ROOT password)"
 				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
 				clear; ribbon "set a password for user $user (enter ROOT password)"
 				su -c "passwd $user"
-				ribbon "configuring system (enter USER password)"
+				clear; ribbon "configuring system (enter USER password)"
 				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
-				ribbon "configuring system"
+				clear; ribbon "configuring system"
 				doas setup-devd udev
 				doas setup-apkrepos -o
 				doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
@@ -119,13 +119,17 @@ cat <<- __EOF__ > "$name"bash
 				# testing repo
 				echo "@testing https://mirrors.gigenet.com/alpinelinux/edge/testing" | doas tee -a /etc/apk/repositories
 				# greeter, graphical tools
-				doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl
+				doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl vim
 				doas sed -i 's%agreety --cmd /bin/sh%cage -s -- regreet%g' /etc/greetd/config.toml
-
+				doas rc-update add greetd default
+				
 				mkdir -p ~/.config/sway; mkdir -p ~/.walls
 				curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
 				curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
 				
+				clear; ribbon "setup finished"
+				for (( i=3; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
+				reboot
 			;;
 			*)
 				fatal "unknown action $1"
