@@ -10,7 +10,7 @@ description="VM test for making kiuon"
 # name of user to add when installing
 user="evergreen"
 
-if [ "$#" -eq 0 ]; then fatal "specify one of: install, setup"; fi
+set -e
 
 # install bash, then run the script
 if [ "$1" = "install" ]; then printf "1\n" | setup-apkrepos; fi
@@ -57,17 +57,17 @@ cat <<- __EOF__ > "$name"bash
 				KEYMAPOPTS="us us"
 				HOSTNAMEOPTS="-n \$name"
 				DEVDOPTS="mdev"
-				INTERFACESOPTS=none
-				DNSOPTS=none
+				INTERFACESOPTS="none"
+				DNSOPTS="none"
 				TIMEZONEOPTS="-z America/Denver"
-				PROXYOPTS=none
+				PROXYOPTS="none"
 				APKREPOSOPTS="-1"
 				USEROPTS="-a -u -g audio,input,video,netdev,wheel $user" ##TODO: prompt for password?
-				SSHDOPTS=none
+				SSHDOPTS="none"
 				NTPOPTS="-c openntpd"
 				DISKOPTS="-m sys /dev/vda"
-				LBUOPTS=none
-				APKCACHEOPTS=none
+				LBUOPTS="none"
+				APKCACHEOPTS="none"
 				EOF
 				setup-alpine -f "\$name-answerfile"
 
@@ -75,11 +75,11 @@ cat <<- __EOF__ > "$name"bash
 				## mount vda3, cd script, add to .profile, chmod both files
 				mount /dev/vda3 /mnt
 				cp -v  /mnt/home/"\$user"/; chmod 777 /mnt/home/"\$user"/"\$name"bash
-				echo "bash /home/\$user/\$namebash setup" > /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
+				echo "bash /home/\$user/"\$name"bash setup" > /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
 				umount /mnt
-				clear; ribbon "install finished"
-				for (( i=5; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
-				reboot
+				#clear; ribbon "install finished"
+				#for (( i=3; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
+				#reboot
 			;;
 			"setup") shift;
 				# cleanup propogation
