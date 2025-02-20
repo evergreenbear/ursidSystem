@@ -75,24 +75,23 @@ cat <<- __EOF__ > "$name"bash
 				## mount vda3, cd script, add to .profile, chmod both files
 				mount /dev/vda3 /mnt
 				cp "\$0" /mnt/home/$user/; chmod 777 /mnt/home/$user/"$name"bash
-				echo "+cp "\$0" /mnt/home/$user/; chmod 777 /mnt/home/$user/$namebash"
 				echo "bash /home/\$user/"\$name"bash setup" > /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
 				umount /mnt
-				#clear; ribbon "install finished"
-				#for (( i=3; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
-				#reboot
+				clear; ribbon "install finished"
+				for (( i=3; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
+				reboot
 			;;
 			"setup") shift;
 				# cleanup propogation
 				echo "" > "\$HOME"/.profile
 				# get everything up and runnning
-				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"
-				ribbon "add a password for user $USER (authenticate with ROOT password)"
-				su -c "passwd $USER"
+				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"	
 				# setup doas
 				ribbon "configuring doas (enter ROOT password)"
 				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
 				# boot time improvements
+				ribbon "set a password for user $user"
+				doas passwd $user
 				ribbon "configuring system (enter USER password)"
 				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
 				ribbon "configuring system"
@@ -113,7 +112,7 @@ cat <<- __EOF__ > "$name"bash
 				doas rc-update del wpa_supplicant boot
 				doas rc-service networkmanager start
 				doas rc-update add networkmanager boot
-				#let's just see if nm will automatically configure ethernet #doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				#doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
 				# kaby lake-appropriate intel drivers
 				doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
 				# setup sway
@@ -124,7 +123,7 @@ cat <<- __EOF__ > "$name"bash
 				doas apk add greetd greetd-regreet@testing cage nerd-fonts-all swaybg alacritty wlogout firefox wl-clipboard curl
 				doas sed -i 's%agreety --cmd /bin/sh%cage -s -- regreet%g' /etc/greetd/config.toml
 
-				mkdir ~/.config/sway; mkdir ~/.walls
+				mkdir -p ~/.config/sway; mkdir -p ~/.walls
 				curl -fL https://raw.githubusercontent.com/evergreenbear/dotfiles/refs/heads/main/sway/kiuon/config -o ~/.config/sway/config
 				curl -fL https://github.com/evergreenbear/dotfiles/blob/main/sway/kiuon/mtn-night-green.jpg?raw=true -o ~/.walls/mtn-night-green.jpg
 				
