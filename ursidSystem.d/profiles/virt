@@ -74,8 +74,8 @@ cat <<- __EOF__ > "$name"bash
 				# propogate script so it runs setup after first boot
 				## mount vda3, cd script, add to .profile, chmod both files
 				mount /dev/vda3 /mnt
-				cp -v "\$name"bash /mnt/home/"\$user"/; chmod 777 /mnt/home/"\$user"/kiuonbash
-				echo "bash /home/\$user/kiuonbash setup" | tee -a /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
+				cp -v "\$name"bash /mnt/home/"\$user"/; chmod 777 /mnt/home/"\$user"/"\$name"bash
+				echo "bash /home/\$user/\$namebash setup" | tee -a /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
 				umount /mnt
 				clear; ribbon "install finished"
 				for (( i=5; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
