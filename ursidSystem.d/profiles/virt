@@ -89,9 +89,8 @@ cat <<- __EOF__ > "$name"bash
 				# setup doas
 				ribbon "configuring doas (enter ROOT password)"
 				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
-				# boot time improvements
-				ribbon "set a password for user $user"
-				doas passwd $user
+				clear; ribbon "set a password for user $user (enter ROOT password)"
+				su -c "passwd $user"
 				ribbon "configuring system (enter USER password)"
 				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
 				ribbon "configuring system"
