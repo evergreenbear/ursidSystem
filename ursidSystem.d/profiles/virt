@@ -129,7 +129,7 @@ cat <<- __EOF__ > "$name"bash
 				
 				clear; ribbon "setup finished"
 				for (( i=3; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
-				reboot
+				doas reboot
 			;;
 			*)
 				fatal "unknown action $1"
