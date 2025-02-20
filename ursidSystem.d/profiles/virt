@@ -77,10 +77,9 @@ cat <<- __EOF__ > "$name"bash
 				cp -v "\$name"bash /mnt/home/"\$user"/; chmod 777 /mnt/home/"\$user"/kiuonbash
 				echo "bash /home/\$user/kiuonbash setup" | tee -a /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
 				umount /mnt
-				echo "+DEBUG: user is \$user"
-				#clear; ribbon "install finished"
-				#for (( i=5; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
-				#reboot
+				clear; ribbon "install finished"
+				for (( i=5; i>0; i-- )); do echo "rebooting in \$i"; sleep 1; done
+				reboot
 			;;
 			"setup") shift;
 				# cleanup propogation
@@ -143,4 +142,5 @@ __EOF__
 # Execute the script with the arguments passed to the ash script
 export name
 export description
+export user
 clear; bash "$name"bash "$@"
