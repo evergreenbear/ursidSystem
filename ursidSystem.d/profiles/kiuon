@@ -111,7 +111,7 @@ cat <<- __EOF__ > "$name"bash
 				doas rc-update del wpa_supplicant boot
 				doas rc-service networkmanager start
 				doas rc-update add networkmanager boot
-				sleep 7; doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				sleep 7; doas nmcli device wifi connect "Hatch Who?" password "Blessyou!"
 				clear; ribbon "setting up desktop"
 				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
 				# kaby lake-appropriate intel drivers
