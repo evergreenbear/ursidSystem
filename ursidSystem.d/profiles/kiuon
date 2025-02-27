@@ -83,15 +83,13 @@ cat <<- __EOF__ > "$name"bash
 				# cleanup propogation
 				echo "" > "\$HOME"/.profile
 				# get everything up and runnning
-				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"	
-				# setup doas
-				clear; ribbon "configuring doas (enter ROOT password)"
-				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
-				clear; ribbon "set a password for user $user (enter ROOT password)"
-				su -c "passwd $user"
-				clear; ribbon "configuring system (enter USER password)"
-				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
-				clear; ribbon "configuring system"
+				[[ "\$EUID" -eq 0 ]] && fatal "run this step as a non-root user; i will elevate where needed"	
+				# setup doa
+				clear; ribbon "set a password for user $user (authenticate with ROOT password)"
+				su -c "passwd $user; sed -i 's/# permit/permit/g' /etc/doas.conf"
+				clear; ribbon "configuring network (authenticate with USER password)"
+				doas setup-devd udev
+				clear; ribbon "configuring network" #get rid of auth hint after first cmd ran w doas
 				doas setup-devd udev
 				doas setup-apkrepos -o
 				doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
@@ -113,7 +111,9 @@ cat <<- __EOF__ > "$name"bash
 				doas rc-update del wpa_supplicant boot
 				doas rc-service networkmanager start
 				doas rc-update add networkmanager boot
-				doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				sleep 7; doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				clear; ribbon "setting up desktop"
+				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
 				# kaby lake-appropriate intel drivers
 				doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
 				# setup sway
@@ -144,7 +144,7 @@ cat <<- __EOF__ > "$name"bash
 	rm "$0"
 __EOF__
 
-# Execute the script with the arguments passed to the ash script
+# run as bash now that we have it, sending over needed variables
 export name
 export description
 export user
