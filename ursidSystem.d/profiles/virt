@@ -1,16 +1,14 @@
 #!/bin/ash
 
-name="virt"
-description="VM test for making kiuon"
+name="kiuon"
+description="HP Elite X2 1012 G1 -- on Sway, configured for touchscreen"
 
 ## from alpine live image, run
 ## setup-interfaces -r
-## to connect to internet, then acquire the script however
+## to connect to internet, then acquire the script however (yaso.su/kiuon)
 
 # name of user to add when installing
 user="evergreen"
-
-set -e
 
 # install bash, then run the script
 if [ "$1" = "install" ]; then printf "1\n" | setup-apkrepos; fi
@@ -65,7 +63,7 @@ cat <<- __EOF__ > "$name"bash
 				USEROPTS="-a -u -g audio,input,video,netdev,wheel $user" ##TODO: prompt for password?
 				SSHDOPTS="none"
 				NTPOPTS="-c openntpd"
-				DISKOPTS="-m sys /dev/vda"
+				DISKOPTS="-m sys /dev/sda"
 				LBUOPTS="none"
 				APKCACHEOPTS="none"
 				EOF
@@ -73,7 +71,7 @@ cat <<- __EOF__ > "$name"bash
 
 				# propogate script so it runs setup after first boot
 				## mount vda3, cd script, add to .profile, chmod both files
-				mount /dev/vda3 /mnt
+				mount /dev/sda3 /mnt
 				cp "\$0" /mnt/home/$user/; chmod 777 /mnt/home/$user/"$name"bash
 				echo "bash /home/\$user/"\$name"bash setup" > /mnt/home/"\$user"/.profile; chmod 777 /mnt/home/"\$user"/.profile
 				umount /mnt
@@ -88,12 +86,14 @@ cat <<- __EOF__ > "$name"bash
 				[[ "\$EUID" -eq 0 ]] && fatal "run this profile as a non-root user; i will elevate where needed"	
 				# setup doas
 				clear; ribbon "configuring doas (enter ROOT password)"
-				su -c "sed -i 's/# permit/permit/g' /etc/doas.conf"
-				clear; ribbon "set a password for user $user (enter ROOT password)"
-				su -c "passwd $user"
+				su
+				sed -i 's/# permit/permit/g' /etc/doas.conf"
+				clear; ribbon "set a password for user $user"
+				passwd $user
+				exit
 				clear; ribbon "configuring system (enter USER password)"
 				doas sed -i 's/#rc_parallel="NO"/rc_parallel="YES"/g' /etc/rc.conf
-				clear; ribbon "configuring system"
+				clear; ribbon "configuring network"
 				doas setup-devd udev
 				doas setup-apkrepos -o
 				doas apk update; doas apk add bash networkmanager networkmanager-bash-completion networkmanager-bluetooth networkmanager-cli networkmanager-openrc networkmanager-tui networkmanager-wifi
@@ -111,7 +111,8 @@ cat <<- __EOF__ > "$name"bash
 				doas rc-update del wpa_supplicant boot
 				doas rc-service networkmanager start
 				doas rc-update add networkmanager boot
-				#doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				#sleep 7; doas nmcli device wifi connect "Hatch Who" password "Blessyou!"
+				ribbon "setting up desktop"
 				# kaby lake-appropriate intel drivers
 				doas apk add mesa-dri-gallium mesa-va-gallium libva-intel-driver
 				# setup sway
